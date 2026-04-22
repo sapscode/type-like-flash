@@ -13,13 +13,14 @@ const Nav = () => {
                 <a
                     target="_blank"
                     className="nav-li-link"
-                    href="https://www.linkedin.com/in/anupam-patra-921634ab/"
-                    rel="noreferrer">
-                    AP
+                    href="https://www.linkedin.com/in/saptarshi-hore/"
+                    rel="noreferrer"
+                >
+                    SH
                 </a>
             </div>
         </div>
-    )
+    );
 }
 
 

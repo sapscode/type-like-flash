@@ -1,187 +1,232 @@
-import React from "react";
-import { SAMPLE_PARAGRAPHS } from "../../data/sampleParagraphs";
-import ChallengeSection from "../ChallengeSection/ChallengeSection";
-import Footer from "../Footer/Footer";
-import Landing from "../Landing/Landing";
-import Nav from "../Nav/Nav";
-import "./App.css";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { SAMPLE_PARAGRAPHS } from '../../data/sampleParagraphs';
+import ChallengeSection from '../ChallengeSection/ChallengeSection';
+import Footer from '../Footer/Footer';
+import Landing from '../Landing/Landing';
+import Nav from '../Nav/Nav';
+import './App.css';
 
 const TotalTime = 60;
-const ServiceUrl = "https://baconipsum.com/api/?type=all-meat&paras=3&start-with-lorem=1&format=text";
-const DefaultState = {
-    selectedParagraph: "",
-    timerStarted: false,
-    timeRemaining: TotalTime,
-    characters: 0,
-    words: 0,
-    wpm: 0,
-    testInfo: []
-}
+const ServiceUrl =
+    'https://baconipsum.com/api/?type=all-meat&paras=3&start-with-lorem=1&format=text';
 
-class App extends React.Component {
-    // constructor(props) {
-    //     super(props);
-    //     this.state = DefaultState;
-    // }
-    state = DefaultState;
+const App = () => {
+    // State management using hooks
+    const [selectedParagraph, setSelectedParagraph] = useState('');
+    const [timerStarted, setTimerStarted] = useState(false);
+    const [timeRemaining, setTimeRemaining] = useState(TotalTime);
+    const [characters, setCharacters] = useState(0);
+    const [words, setWords] = useState(0);
+    const [wpm, setWpm] = useState(0);
+    const [testInfo, setTestInfo] = useState([]);
 
-    fetchNewParagraphFallback = () => {
+    const timerIntervalRef = useRef(null);
+    const wordsRef = useRef(0);
+
+    // Reset state to initial values
+    const resetState = useCallback(() => {
+        setSelectedParagraph('');
+        setTimerStarted(false);
+        setTimeRemaining(TotalTime);
+        setCharacters(0);
+        setWords(0);
+        setWpm(0);
+        setTestInfo([]);
+        wordsRef.current = 0;
+    }, []);
+
+    // Fetch paragraph from fallback data
+    const fetchNewParagraphFallback = useCallback(() => {
         const data =
             SAMPLE_PARAGRAPHS[
-            Math.floor(Math.random() * SAMPLE_PARAGRAPHS.length)
+                Math.floor(Math.random() * SAMPLE_PARAGRAPHS.length)
             ];
-        const selectedParagraph = data.split("");
-        const testInfo = selectedParagraph.map(selectedLetter => {
-            return {
-                testLetter: selectedLetter,
-                status: "notAttempted",
-            }
-        });
+        const selectedParagraphArray = data.split('');
+        const newTestInfo = selectedParagraphArray.map((selectedLetter) => ({
+            testLetter: selectedLetter,
+            status: 'notAttempted',
+        }));
 
-        //this.setState({testInfo: testInfo});
-        //if objet name is same as name of variable containing value then we can write like this
-        this.setState({
-            ...DefaultState,
-            testInfo,
-            selectedParagraph
-        });
-    }
-    fetchNewParagraph = () => {
+        setSelectedParagraph(selectedParagraphArray);
+        setTestInfo(newTestInfo);
+        resetState();
+    }, [resetState]);
+
+    // Fetch paragraph from API (currently unused in the original code)
+    const fetchNewParagraph = useCallback(() => {
         fetch(ServiceUrl)
-            .then(response => response.text())
-            .then(data => {
+            .then((response) => response.text())
+            .then((data) => {
                 console.log(data);
-                const selectedParagraph = data.split("");
-                const testInfo = selectedParagraph.map(selectedLetter => {
-                    return {
+                const selectedParagraphArray = data.split('');
+                const newTestInfo = selectedParagraphArray.map(
+                    (selectedLetter) => ({
                         testLetter: selectedLetter,
-                        status: "notAttempted",
-                    }
-                });
+                        status: 'notAttempted',
+                    })
+                );
 
-                //this.setState({testInfo: testInfo});
-                //if objet name is same as name of variable containing value then we can write like this
-                this.setState({
-                    ...DefaultState,
-                    testInfo,
-                    selectedParagraph
-                });
+                setSelectedParagraph(selectedParagraphArray);
+                setTestInfo(newTestInfo);
+                resetState();
             })
-    }
+            .catch((error) => {
+                console.error('Error fetching paragraph:', error);
+                fetchNewParagraphFallback();
+            });
+    }, [resetState, fetchNewParagraphFallback]);
 
-    componentDidMount() {
-        //this.fetchNewParagraph();
-        this.fetchNewParagraphFallback();
-    }
+    // Initialize app with fallback paragraph on mount
+    useEffect(() => {
+        fetchNewParagraphFallback();
+    }, [fetchNewParagraphFallback]);
 
-    startTimer = () => {
-        this.setState({ timerStarted: true })
-        const timer = setInterval(() => {
-            if (this.state.timeRemaining > 0) {
-                // Change the wpm 
-                const timeSpent = TotalTime - this.state.timeRemaining;
-                const wpm = timeSpent > 0 ?
-                    (this.state.words / timeSpent) * TotalTime
-                    : 0;
-                this.setState({
-                    timeRemaining: this.state.timeRemaining - 1,
-                    wpm: parseInt(wpm),
-                });
-            } else {
-                clearInterval(timer);
+    // Timer effect - runs when timer starts
+    useEffect(() => {
+        if (!timerStarted) return;
+
+        timerIntervalRef.current = setInterval(() => {
+            setTimeRemaining((prevTime) => {
+                if (prevTime > 1) {
+                    const newTimeRemaining = prevTime - 1;
+                    const timeSpent = TotalTime - newTimeRemaining;
+                    const newWpm =
+                        timeSpent > 0
+                            ? (wordsRef.current / timeSpent) * TotalTime
+                            : 0;
+                    setWpm(parseInt(newWpm));
+                    return newTimeRemaining;
+                } else {
+                    // Timer reached 0
+                    if (timerIntervalRef.current) {
+                        clearInterval(timerIntervalRef.current);
+                    }
+                    return 0;
+                }
+            });
+        }, 1000);
+
+        return () => {
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+        };
+    }, [timerStarted]);
+
+    // Start timer
+    const startTimer = useCallback(() => {
+        setTimerStarted(true);
+    }, []);
+
+    // Start again - reset and fetch new paragraph
+    const startAgain = useCallback(() => {
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+        }
+        fetchNewParagraphFallback();
+    }, [fetchNewParagraphFallback]);
+
+    // Handle user input
+    const handleUserInput = useCallback(
+        (inputValue) => {
+            if (!timerStarted) {
+                startTimer();
             }
 
-        }, 1000)
-    }
+            /**
+             * 1.Handle the underflow case - all the characters should be shown as not-attempted and early exit
+             * 2.Handle the overflow case - early exit
+             * 3.Handle the backspace
+             *          - mark the (index + 1) element as not attempted(irrespective of whether the index is less than zero)
+             *          - But dont forget to check the overflow case here
+             *            (index + 1 -> out of bound, when the index === length - 1 )
+             * 4.Update the status in the test info
+             *          - Find out the last character in the inputvalue and it's index
+             *          - Check if the character at same index in testInfo (state) matches or not
+             *          - Yes -> "correct"
+             *            No -> "incorrect"
+             * 5.Irrespective of the case, characters, words and speed(wpm) can be updated
+             *  */
 
-    startAgain = () => this.fetchNewParagraphFallback();
-    //this.fetchNewParagraph(); 
+            const charCount = inputValue.length;
+            const wordCount = inputValue
+                .split(' ')
+                .filter((word) => word.length > 0).length;
+            const index = charCount - 1;
 
-    handleUserInput = (inputValue) => {
-        if (!this.state.timerStarted)
-            this.startTimer();
-        /**
-         * 1.Handle the underflow case - all the characters should be shown as not-attempted and early exit
-         * 2.Handle the overflow case - early exit
-         * 3.Handle the backspace 
-         *          - mark the (index + 1) element as not attempted(irrespective of whether the index is less than zero) 
-         *          - But dont forget to check the overflow case here
-         *            (index + 1 -> out of bound, when the index === length - 1 )
-         * 4.Update the status in the test info
-         *          - Find out the last character in the inputvalue and it's index
-         *          - Check if the character at same index in testInfo (state) matches or not
-         *          - Yes -> "correct"
-         *            No -> "incorrect"
-         * 5.Irrespective of the case, characters, words and speed(wpm) can be updated
-         *  */
+            wordsRef.current = wordCount;
 
-        const characters = inputValue.length;
-        const words = inputValue.split("").length;
-        const index = characters - 1;
-
-        if (index < 0) {
-            this.setState({
-                testInfo: [
+            if (index < 0) {
+                setTestInfo((prevTestInfo) => [
                     {
-                        testLetter: this.state.testInfo[0].testLetter,
-                        status: "not attempted"
+                        testLetter: prevTestInfo[0]?.testLetter || '',
+                        status: 'notAttempted',
                     },
-                    ...this.state.testInfo.slice(1),
-                ],
-                characters,
-                words,
+                    ...prevTestInfo.slice(1),
+                ]);
+                setCharacters(charCount);
+                setWords(wordCount);
+                return;
+            }
+
+            if (index >= selectedParagraph.length) {
+                setCharacters(charCount);
+                setWords(wordCount);
+                return;
+            }
+
+            // Create a copy of testInfo and update it
+            setTestInfo((prevTestInfo) => {
+                const newTestInfo = prevTestInfo.map((item, idx) => {
+                    if (idx === index) {
+                        const isCorrect = inputValue[index] === item.testLetter;
+                        return {
+                            ...item,
+                            status: isCorrect ? 'correct' : 'incorrect',
+                        };
+                    }
+                    if (
+                        idx === index + 1 &&
+                        index < selectedParagraph.length - 1
+                    ) {
+                        return {
+                            ...item,
+                            status: 'notAttempted',
+                        };
+                    }
+                    return item;
+                });
+                return newTestInfo;
             });
-            return;
-        }
 
-        if (index > this.state.selectedParagraph.length) {
-            this.setState({ characters, words })
-            return;
-        }
+            setCharacters(charCount);
+            setWords(wordCount);
+        },
+        [timerStarted, selectedParagraph, startTimer]
+    );
 
-        // Make a copy of testInfo
-        const testInfo = this.state.testInfo;
-        if (!(index === this.state.selectedParagraph.length - 1))
-            testInfo[index + 1].status = "notAttempted";
-
-        // check for the corret typed letter
-        const isCorrect = inputValue[index] === testInfo[index].testLetter;
-
-        //update the test info
-        testInfo[index].status = isCorrect ? "correct" : "incorrect";
-
-        //update the state
-        this.setState({
-            testInfo,
-            words,
-            characters
-        })
-    };
-
-    render() {
-        return (
-            <div className="app">
-                {/* Nav Section */}
-                <Nav />
-                {/* Landing Page */}
-                <Landing />
-                {/* Chalenge Section */}
-                <ChallengeSection
-                    selectedParagraph={this.state.selectedParagraph}
-                    words={this.state.words}
-                    characters={this.state.characters}
-                    wpm={this.state.wpm}
-                    timeRemaining={this.state.timeRemaining}
-                    timerStarted={this.state.timerStarted}
-                    testInfo={this.state.testInfo}
-                    onInputChange={this.handleUserInput}
-                    startAgain={this.startAgain}
-                />
-                {/* Footer */}
-                <Footer />
-            </div>
-        )
-    }
-}
+    return (
+        <div className="app">
+            {/* Nav Section */}
+            <Nav />
+            {/* Landing Page */}
+            <Landing />
+            {/* Challenge Section */}
+            <ChallengeSection
+                selectedParagraph={selectedParagraph}
+                words={words}
+                characters={characters}
+                wpm={wpm}
+                timeRemaining={timeRemaining}
+                timerStarted={timerStarted}
+                testInfo={testInfo}
+                onInputChange={handleUserInput}
+                startAgain={startAgain}
+            />
+            {/* Footer */}
+            <Footer />
+        </div>
+    );
+};
 
 export default App;
